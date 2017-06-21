@@ -5,10 +5,18 @@ from tensorflow.contrib import rnn
 import numpy as np
 
 def CTC(inputs):
+    """
+        CTC
+    """
+
     # Probably won't work, just a placeholder
     return tf.nn.ctc_greedy_decoder(inputs, tf.shape(inputs)[0])
 
 def BidirectionnalRNN(inputs):
+    """
+        Bidirectionnal LSTM Recurrent Neural Network part
+    """
+
     # Forward
     lstm_fw_cell = rnn.BasicLSTMCell(256, forget_bias=1.0)
     # Backward
@@ -20,6 +28,10 @@ def BidirectionnalRNN(inputs):
     return outputs
 
 def CNN(inputs):
+    """
+        Convolutionnal Neural Network part
+    """
+
     # 64 / 3 x 3 / 1 / 1
     conv1 = tf.layers.conv2d(inputs = inputs, filters = 64, kernel_size = (3, 3), padding = 1, activation=tf.nn.relu)
     
@@ -62,6 +74,10 @@ def CNN(inputs):
     return conv7
 
 def CRNN(x):
+    """
+        Feedforward function
+    """
+    
     inputs = tf.reshape(x, [-1, 32, 100, 1))
     return CTC(
         BidirectionnalRNN(
@@ -70,4 +86,3 @@ def CRNN(x):
             )
         )
     )
-
