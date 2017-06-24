@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow.contrib import rnn
 import numpy as np
 
-def BidirectionnalRNN(inputs):
+def BidirectionnalRNN(inputs, batch_size):
     """
         Bidirectionnal LSTM Recurrent Neural Network part
     """
@@ -17,6 +17,8 @@ def BidirectionnalRNN(inputs):
     lstm_bw_cell = rnn.BasicLSTMCell(256, forget_bias=1.0)
 
     outputs, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, inputs, dtype=tf.float32)
+
+    print(outputs)
 
     return outputs
 
@@ -66,7 +68,7 @@ def CNN(inputs):
 
     return conv7
 
-def MapToSequence(x):
+def MapToSequences(x, batch_size):
     #return tf.unstack(
     #    tf.transpose(
     #        tf.squeeze(
@@ -78,24 +80,28 @@ def MapToSequence(x):
     #        perm=[2, 0, 1]
     #    )
     #)
-    x = tf.reshape(x, [-1, 512, 1, 50])
+    x = tf.reshape(x, [batch_size, 512, 1, 50])
     print(x)
-    x = tf.transpose(x, perm=[2, 3, 0, 1])
+    x = tf.squeeze(x)
     print(x)
-    x = tf.unstack(x)
+    x = tf.transpose(x, perm=[2, 0, 1])
+    print(x)
+    x = tf.unstack(x, num=50)
     print(x)
     return x
 
-def CRNN(x):
+def CRNN(x, batch_size):
     """
         Feedforward function
     """
 
     inputs = tf.reshape(x, [-1, 32, 400, 1])
     return BidirectionnalRNN(
-        MapToSequence(
+        MapToSequences(
             CNN(
                 inputs
-            )
-        )
+            ),
+            batch_size
+        ),
+        batch_size
     )

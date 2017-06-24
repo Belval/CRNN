@@ -26,13 +26,18 @@ def create_ground_truth(label):
     """
     return [CHAR_VECTOR.index(l) for l in label.split('_')[1]]
 
+def ground_truth_to_word(ground_truth):
+    """
+        Return the word string based on the input ground_truth
+    """
+    return ''.join([CHAR_VECTOR[i] for i in ground_truth])
 
 def load_data(folder):
     examples = []
 
     count = 0
     for f in os.listdir(folder):        
-        if count > 1000:
+        if count > 100:
             break
         examples.append(
             (
@@ -41,7 +46,8 @@ def load_data(folder):
                 ),
                 create_ground_truth(
                     f
-                )
+                ),
+                len(f.split('_')[1])
             )
         )
         print(examples[-1][1])
@@ -68,19 +74,18 @@ def main(args):
     graph = tf.Graph()
 
     with graph.as_default():
-        # The input placeholder. As per the paper, the shape is 32x100
-        inputs = tf.placeholder(tf.float32, [None, 32, 200])
+        inputs = tf.placeholder(tf.float32, [None, 32, 400])
         
         # The CRNN
-        crnn = CRNN(inputs)
+        crnn = CRNN(inputs, batch_size)
 
         # Our target output
-        targets = tf.sparse_placeholder(tf.int32)
+        targets = tf.sparse_placeholder(tf.int32, name='targets')
 
         # The length of the sequence
-        seq_len = tf.placeholder(tf.int32, [None])
+        seq_len = tf.placeholder(tf.int32, [None], name='seq_len')
 
-        logits = tf.reshape(crnn, [batch_size, -1, NUM_CLASSES])
+        logits = tf.reshape(crnn, [batch_size, -1, 50])
 
         # Final layer, the output of the BLSTM
         logits = tf.transpose(logits, (1, 0, 2))
@@ -90,7 +95,7 @@ def main(args):
         cost = tf.reduce_mean(loss)
 
         # Training step
-        optimizer = tf.train.MomentumOptimizer(initial_learning_rate, 0.9).minimize(cost)
+        optimizer = tf.train.MomentumOptimizer(0.01, 0.9).minimize(cost)
 
         # The decoded answer
         decoded, log_prob = tf.nn.ctc_greedy_decoder(logits, seq_len)
@@ -103,31 +108,39 @@ def main(args):
 
         # Train
         
-        for it in iteration_count:
+        print(len(train_data))
+
+        for it in range(0, iteration_count):
             iter_avg_cost = 0
             start = time.time()
-            for b in [train_data[x:x*batch_size] for x in range(0, int(len(train_data) / batch_size))]:
-                data, labels = b
+            for b in [train_data[x*batch_size:x*batch_size + batch_size] for x in range(0, int(len(train_data) / batch_size))]:
+                data, labels, seq_lens = zip(*b)
+                print(len(data))
+                print(len(labels))
+                print(len(seq_lens))
                 cost = sess.run(
                     ['cost'],
                     {
                         inputs: data,
-                        words: labels,
+                        targets: (np.array([x for i in range(0, seq_len)], dtype=np.int64), labels),
+                        seq_len: list(seq_lens)
                     }
                 )
                 iter_avg_cost += cost / batch_size
 
-            print('[{}] {} : {}'.format(time.time() - start, it, iter_cost))
+            print('[{}] {} : {}'.format(time.time() - start, it, iter_avg_cost))
 
         # Test
-        data, labels = test_data
-        words, cost = sess.run(
-            ['words', 'cost'],
+        data, labels, seq_lens = zip(*test_data)
+        decoded, cost = sess.run(
+            ['decoded', 'cost'],
             {
                 inputs: data,
+                targets: labels,
+                seq_len: list(seq_lens),
             }
         )
-        print('Result: {} / {} correctly read'.format(len(filter(zip(words, labels))), len(words)))
+        print('Result: {} / {} correctly read'.format(len(filter(zip(decoded, labels))), len(decoded)))
 
 if __name__=='__main__':
     main(sys.argv)
