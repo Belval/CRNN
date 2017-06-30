@@ -6,9 +6,10 @@ import tensorflow as tf
 
 from scipy.misc import imread, imresize
 from model import CRNN
+from utils import sparse_tuple_from, to_seq_len
 
 # Constants
-CHAR_VECTOR = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\\|:_-+=!@#$%?&*()"\' '
+CHAR_VECTOR = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 NUM_CLASSES = len(CHAR_VECTOR)
 
 def resize_image(image):
@@ -37,7 +38,7 @@ def load_data(folder):
 
     count = 0
     for f in os.listdir(folder):        
-        if count > 100:
+        if count > 300:
             break
         examples.append(
             (
@@ -50,7 +51,6 @@ def load_data(folder):
                 len(f.split('_')[1])
             )
         )
-        print(examples[-1][1])
         count += 1
     return examples
 
@@ -85,7 +85,14 @@ def main(args):
         # The length of the sequence
         seq_len = tf.placeholder(tf.int32, [None], name='seq_len')
 
-        logits = tf.reshape(crnn, [batch_size, -1, 50])
+        logits = tf.reshape(crnn, [-1, 512])
+
+        W = tf.Variable(tf.truncated_normal([512, NUM_CLASSES], stddev=0.1), name="W")
+        b = tf.Variable(tf.constant(0., shape=[NUM_CLASSES]), name="b")
+
+        logits = tf.matmul(logits, W) + b
+
+        logits = tf.reshape(logits, [batch_size, -1, NUM_CLASSES])
 
         # Final layer, the output of the BLSTM
         logits = tf.transpose(logits, (1, 0, 2))
@@ -98,7 +105,7 @@ def main(args):
         optimizer = tf.train.MomentumOptimizer(0.01, 0.9).minimize(cost)
 
         # The decoded answer
-        decoded, log_prob = tf.nn.ctc_greedy_decoder(logits, seq_len)
+        decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
 
         # The error rate
         acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), targets))
@@ -108,39 +115,34 @@ def main(args):
 
         # Train
         
-        print(len(train_data))
-
         for it in range(0, iteration_count):
             iter_avg_cost = 0
             start = time.time()
             for b in [train_data[x*batch_size:x*batch_size + batch_size] for x in range(0, int(len(train_data) / batch_size))]:
-                data, labels, seq_lens = zip(*b)
-                print(len(data))
-                print(len(labels))
-                print(len(seq_lens))
-                cost = sess.run(
-                    ['cost'],
+                in_data, labels, seq_lens = zip(*b)
+                decoded_val, cost_val = sess.run(
+                    [decoded, cost],
                     {
-                        inputs: data,
-                        targets: (np.array([x for i in range(0, seq_len)], dtype=np.int64), labels),
-                        seq_len: list(seq_lens)
+                        inputs: in_data,
+                        targets: sparse_tuple_from(labels, NUM_CLASSES),
+                        seq_len: to_seq_len(seq_lens)
                     }
                 )
-                iter_avg_cost += cost / batch_size
+                iter_avg_cost += (np.sum(cost_val) / batch_size) / (int(len(train_data) / batch_size))
 
             print('[{}] {} : {}'.format(time.time() - start, it, iter_avg_cost))
 
         # Test
-        data, labels, seq_lens = zip(*test_data)
-        decoded, cost = sess.run(
-            ['decoded', 'cost'],
+        in_data, labels, seq_lens = zip(*test_data)
+        decoded_val, cost_val = sess.run(
+            [decoded, cost],
             {
-                inputs: data,
-                targets: labels,
-                seq_len: list(seq_lens),
+                inputs: in_data,
+                targets: sparse_tuple_from(labels, NUM_CLASSES),
+                seq_len: to_seq_len(seq_lens),
             }
         )
-        print('Result: {} / {} correctly read'.format(len(filter(zip(decoded, labels))), len(decoded)))
+        print('Result: {} / {} correctly read'.format(len(filter(zip(decoded_val, labels))), len(decoded_val)))
 
 if __name__=='__main__':
     main(sys.argv)

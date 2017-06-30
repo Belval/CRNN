@@ -9,16 +9,12 @@ def BidirectionnalRNN(inputs, batch_size):
         Bidirectionnal LSTM Recurrent Neural Network part
     """
 
-    print(inputs)
-
     # Forward
     lstm_fw_cell = rnn.BasicLSTMCell(256, forget_bias=1.0)
     # Backward
     lstm_bw_cell = rnn.BasicLSTMCell(256, forget_bias=1.0)
 
     outputs, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, inputs, dtype=tf.float32)
-
-    print(outputs)
 
     return outputs
 
@@ -81,13 +77,9 @@ def MapToSequences(x, batch_size):
     #    )
     #)
     x = tf.reshape(x, [batch_size, 512, 1, 50])
-    print(x)
     x = tf.squeeze(x)
-    print(x)
     x = tf.transpose(x, perm=[2, 0, 1])
-    print(x)
     x = tf.unstack(x, num=50)
-    print(x)
     return x
 
 def CRNN(x, batch_size):
