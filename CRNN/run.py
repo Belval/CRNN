@@ -4,51 +4,49 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from scipy.misc import imread, imresize
 from model import CRNN
-from utils import sparse_tuple_from, to_seq_len
+from utils import sparse_tuple_from, to_seq_len, resize_image
 
 # Constants
-CHAR_VECTOR = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+CHAR_VECTOR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,-.' "
 NUM_CLASSES = len(CHAR_VECTOR)
-
-def resize_image(image):
-    final_arr = np.zeros((32, 400))
-    im_arr = imread(image, mode='L')
-    r, c = np.shape(im_arr)
-    ratio = float(32 / r)
-    im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
-    final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
-    return final_arr
+INPUT_WIDTH = 2000
 
 def create_ground_truth(label):
     """
         Create our ground truth by replacing each char by its index in the CHAR_VECTOR
     """
-    return [CHAR_VECTOR.index(l) for l in label.split('_')[1]]
+
+    return [CHAR_VECTOR.index(l) for l in label.split('_')[0]]
 
 def ground_truth_to_word(ground_truth):
     """
         Return the word string based on the input ground_truth
     """
+
     return ''.join([CHAR_VECTOR[i] for i in ground_truth])
 
 def load_data(folder):
+    """
+        Load all the images in the folder
+    """
+
     examples = []
 
     count = 0
-    for f in os.listdir(folder):        
-        if count > 300:
+    for f in os.listdir(folder):    
+        if count > 1000:
             break
         examples.append(
             (
                 resize_image(
-                    os.path.join(folder, f)
+                    os.path.join(folder, f),
+                    INPUT_WIDTH
                 ),
                 create_ground_truth(
                     f
                 ),
-                len(f.split('_')[1])
+                len(f.split('_')[0])
             )
         )
         count += 1
@@ -74,7 +72,7 @@ def main(args):
     graph = tf.Graph()
 
     with graph.as_default():
-        inputs = tf.placeholder(tf.float32, [None, 32, 400])
+        inputs = tf.placeholder(tf.float32, [batch_size, 32, None, 1])
         
         # The CRNN
         crnn = CRNN(inputs, batch_size)
@@ -99,6 +97,7 @@ def main(args):
 
         # Loss and cost calculation
         loss = tf.nn.ctc_loss(targets, logits, seq_len)
+
         cost = tf.reduce_mean(loss)
 
         # Training step
@@ -120,12 +119,13 @@ def main(args):
             start = time.time()
             for b in [train_data[x*batch_size:x*batch_size + batch_size] for x in range(0, int(len(train_data) / batch_size))]:
                 in_data, labels, seq_lens = zip(*b)
+                
                 decoded_val, cost_val = sess.run(
                     [decoded, cost],
                     {
                         inputs: in_data,
                         targets: sparse_tuple_from(labels, NUM_CLASSES),
-                        seq_len: to_seq_len(seq_lens)
+                        seq_len: to_seq_len(seq_lens, batch_size)
                     }
                 )
                 iter_avg_cost += (np.sum(cost_val) / batch_size) / (int(len(train_data) / batch_size))
@@ -139,7 +139,7 @@ def main(args):
             {
                 inputs: in_data,
                 targets: sparse_tuple_from(labels, NUM_CLASSES),
-                seq_len: to_seq_len(seq_lens),
+                seq_len: to_seq_len(seq_lens, batch_size),
             }
         )
         print('Result: {} / {} correctly read'.format(len(filter(zip(decoded_val, labels))), len(decoded_val)))

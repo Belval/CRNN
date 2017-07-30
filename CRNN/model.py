@@ -60,26 +60,14 @@ def CNN(inputs):
     pool4 = tf.layers.max_pooling2d(inputs=conv6, pool_size=[1, 2], strides=2)
 
     # 512 / 2 x 2 / 1 / 0     
-    conv7 = tf.layers.conv2d(inputs = pool4, filters = 512, kernel_size = (2, 2), padding = "same", activation=tf.nn.relu)
+    conv7 = tf.layers.conv2d(inputs = pool4, filters = 512, kernel_size = (2, 2), padding = "valid", activation=tf.nn.relu)
 
     return conv7
 
 def MapToSequences(x, batch_size):
-    #return tf.unstack(
-    #    tf.transpose(
-    #        tf.squeeze(
-    #            tf.reshape(
-    #                x,
-    #                [-1, 512, 1, 50]
-    #            )
-    #        ),
-    #        perm=[2, 0, 1]
-    #    )
-    #)
-    x = tf.reshape(x, [batch_size, 512, 1, 50])
     x = tf.squeeze(x)
-    x = tf.transpose(x, perm=[2, 0, 1])
-    x = tf.unstack(x, num=50)
+    x = tf.transpose(x, perm=[1, 0, 2])
+    x = tf.unstack(x)
     return x
 
 def CRNN(x, batch_size):
@@ -87,13 +75,12 @@ def CRNN(x, batch_size):
         Feedforward function
     """
 
-    inputs = tf.reshape(x, [-1, 32, 400, 1])
     return BidirectionnalRNN(
         MapToSequences(
             CNN(
-                inputs
+                x
             ),
-            batch_size
+            batch_size,
         ),
         batch_size
     )
