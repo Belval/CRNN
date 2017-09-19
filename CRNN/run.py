@@ -1,148 +1,51 @@
-import os
-import sys
-import time
-import numpy as np
 import tensorflow as tf
+import numpy as np
+import argparse
+from PIL import Image
+from utils import resize_image, label_to_string
 
-from model import CRNN
-from utils import sparse_tuple_from, to_seq_len, resize_image
-
-# Constants
-CHAR_VECTOR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,-.' "
-NUM_CLASSES = len(CHAR_VECTOR)
-INPUT_WIDTH = 2000
-
-def create_ground_truth(label):
+def arg_parse():
     """
-        Create our ground truth by replacing each char by its index in the CHAR_VECTOR
+        Parse the command line arguments of the program.
     """
 
-    return [CHAR_VECTOR.index(l) for l in label.split('_')[0]]
+    parser = argparse.ArgumentParser(description='Test a model on data.')
 
-def ground_truth_to_word(ground_truth):
+    parser.add_argument(
+        "model_path",
+        type=str,
+        nargs="?",
+        help="The model's path",
+    )
+    parser.add_argument(
+        "image_path",
+        type=str,
+        nargs="?",
+        help="The image to test on",
+    )
+
+def main():
     """
-        Return the word string based on the input ground_truth
-    """
-
-    return ''.join([CHAR_VECTOR[i] for i in ground_truth])
-
-def load_data(folder):
-    """
-        Load all the images in the folder
-    """
-
-    examples = []
-
-    count = 0
-    for f in os.listdir(folder):    
-        if count > 1000:
-            break
-        examples.append(
-            (
-                resize_image(
-                    os.path.join(folder, f),
-                    INPUT_WIDTH
-                ),
-                create_ground_truth(
-                    f
-                ),
-                len(f.split('_')[0])
-            )
-        )
-        count += 1
-    return examples
-
-def main(args):
-    """
-        Usage: run.py [iteration_count] [batch_size] [data_dir] [log_save_dir] [graph_save_dir]
+        Runs the model on an picture of a line of text
     """
 
-    # The user-defined training parameters
-    iteration_count = int(args[1])
-    batch_size = int(args[2])
-    data_dir = args[3]
-    log_save_dir = args[4]
-    graph_save_dir = args[5]
+    args = arg_parse()
 
-    # The training data
-    data = load_data(data_dir)
-    train_data = data[0:int(len(data) * 0.70)]
-    test_data = data[int(len(data) * 0.70):]
+    img = resize_image(image_path, 2000)
 
-    graph = tf.Graph()
+    with tf.gfile.GFile(args.model_path, "rb") as f:
+        graph_def = tf.GraphDef()
+        graph_def.ParseFromString(f.read())
+        tf.import_graph_def(graph_def)
 
-    with graph.as_default():
-        inputs = tf.placeholder(tf.float32, [batch_size, 32, None, 1])
-        
-        # The CRNN
-        crnn = CRNN(inputs, batch_size)
-
-        # Our target output
-        targets = tf.sparse_placeholder(tf.int32, name='targets')
-
-        # The length of the sequence
-        seq_len = tf.placeholder(tf.int32, [None], name='seq_len')
-
-        logits = tf.reshape(crnn, [-1, 512])
-
-        W = tf.Variable(tf.truncated_normal([512, NUM_CLASSES], stddev=0.1), name="W")
-        b = tf.Variable(tf.constant(0., shape=[NUM_CLASSES]), name="b")
-
-        logits = tf.matmul(logits, W) + b
-
-        logits = tf.reshape(logits, [batch_size, -1, NUM_CLASSES])
-
-        # Final layer, the output of the BLSTM
-        logits = tf.transpose(logits, (1, 0, 2))
-
-        # Loss and cost calculation
-        loss = tf.nn.ctc_loss(targets, logits, seq_len)
-
-        cost = tf.reduce_mean(loss)
-
-        # Training step
-        optimizer = tf.train.MomentumOptimizer(0.01, 0.9).minimize(cost)
-
-        # The decoded answer
-        decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
-
-        # The error rate
-        acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), targets))
-
-    with tf.Session(graph=graph) as sess:
-        tf.global_variables_initializer().run()
-
-        # Train
-        
-        for it in range(0, iteration_count):
-            iter_avg_cost = 0
-            start = time.time()
-            for b in [train_data[x*batch_size:x*batch_size + batch_size] for x in range(0, int(len(train_data) / batch_size))]:
-                in_data, labels, seq_lens = zip(*b)
-                
-                decoded_val, cost_val = sess.run(
-                    [decoded, cost],
-                    {
-                        inputs: in_data,
-                        targets: sparse_tuple_from(labels, NUM_CLASSES),
-                        seq_len: to_seq_len(seq_lens, batch_size)
-                    }
-                )
-                iter_avg_cost += (np.sum(cost_val) / batch_size) / (int(len(train_data) / batch_size))
-
-            print('[{}] {} : {}'.format(time.time() - start, it, iter_avg_cost))
-
-        # Test
-        in_data, labels, seq_lens = zip(*test_data)
-        decoded_val, cost_val = sess.run(
-            [decoded, cost],
+    with Session(graph=tf.Graph().as_default()) as sess:
+        decoded_val = sess.run(
+            ["decoded"],
             {
-                inputs: in_data,
-                targets: sparse_tuple_from(labels, NUM_CLASSES),
-                seq_len: to_seq_len(seq_lens, batch_size),
+                inputs:
             }
         )
-        print('Result: {} / {} correctly read'.format(len(filter(zip(decoded_val, labels))), len(decoded_val)))
+)
 
-if __name__=='__main__':
-    main(sys.argv)
+if __name__ == '__main__':
+    main()
