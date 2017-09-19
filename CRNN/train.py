@@ -33,14 +33,15 @@ def load_data(folder):
     for f in os.listdir(folder):
         if count > 1000:
             break
+        arr, initial_len = resize_image(
+            os.path.join(folder, f),
+            config.INPUT_WIDTH
+        )
         examples.append(
             (
-                resize_image(
-                    os.path.join(folder, f),
-                    config.INPUT_WIDTH
-                ),
+                arr,
                 f.split('_')[0],
-                #len(f.split('_')[0])
+                initial_len
             )
         )
         count += 1
@@ -118,13 +119,20 @@ def main(args):
             iter_avg_cost = 0
             start = time.time()
             for b in [train_data[x*batch_size:x*batch_size + batch_size] for x in range(0, int(len(train_data) / batch_size))]:
-                in_data, labels = zip(*b)
+                in_data, labels, data_seq_len = zip(*b)
+
+                print(data_seq_len)
 
                 data_targets = np.asarray([label_to_array(lbl, config.CHAR_VECTOR) for lbl in labels])
 
                 data_targets = sparse_tuple_from(data_targets)
 
-                data_seq_len = [config.INPUT_WIDTH]
+                print(np.shape(data_targets[0]))
+                print(np.shape(data_targets[1]))
+                print(np.shape(data_targets[2]))
+                print(data_targets[0])
+                print(data_targets[1])
+                print(data_targets[2])
 
                 data_shape = np.shape(in_data)
 
@@ -143,16 +151,16 @@ def main(args):
             print('[{}] {} : {}'.format(time.time() - start, it, iter_avg_cost))
 
         # Test
-        in_data, labels, seq_lens = zip(*test_data)
-        decoded_val, cost_val = sess.run(
-            [decoded, cost],
-            {
-                inputs: in_data,
-                targets: sparse_tuple_from(labels, config.NUM_CLASSES),
-                seq_len: to_seq_len(seq_lens, config.INPUT_WIDTH),
-            }
-        )
-        print('Result: {} / {} correctly read'.format(len(filter(zip(decoded_val, labels))), len(decoded_val)))
+        #in_data, labels, seq_lens = zip(*test_data)
+        #decoded_val, cost_val = sess.run(
+        #    [decoded, cost],
+        #    {
+        #        inputs: in_data,
+        #        targets: sparse_tuple_from(labels, config.NUM_CLASSES),
+        #        seq_len: to_seq_len(seq_lens, config.INPUT_WIDTH),
+        #    }
+        #)
+        #print('Result: {} / {} correctly read'.format(len(filter(zip(decoded_val, labels))), len(decoded_val)))
 
 
 

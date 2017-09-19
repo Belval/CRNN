@@ -13,13 +13,13 @@ def sparse_tuple_from(sequences, dtype=np.int32):
     for n, seq in enumerate(sequences):
         print(n)
         indices.extend(zip([n]*len(seq), [i for i in range(len(seq))]))
-        print(n)
         values.extend(seq)
-        print(n)
 
     indices = np.asarray(indices, dtype=np.int64)
     values = np.asarray(values, dtype=dtype)
     shape = np.asarray([len(sequences), np.asarray(indices).max(0)[1]+1], dtype=np.int64)
+
+    return indices, values, shape
 
 def resize_image(image, input_width):
     """
@@ -32,7 +32,7 @@ def resize_image(image, input_width):
     ratio = float(32 / r)
     im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
     final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
-    return final_arr
+    return final_arr, c
 
 def to_seq_len(inputs, max_len):
     return np.ones(np.shape(inputs)[0]) * max_len
