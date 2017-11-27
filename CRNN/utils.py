@@ -1,6 +1,9 @@
 import numpy as np
+import tensorflow as tf
 
 from scipy.misc import imread, imresize
+
+import config
 
 def sparse_tuple_from(sequences, dtype=np.int32):
     """
@@ -11,7 +14,6 @@ def sparse_tuple_from(sequences, dtype=np.int32):
     values = []
 
     for n, seq in enumerate(sequences):
-        print(n)
         indices.extend(zip([n]*len(seq), [i for i in range(len(seq))]))
         values.extend(seq)
 
@@ -46,3 +48,37 @@ def labels_to_string(labels, word_string):
 
 def label_to_array(label, letters):
     return [letters.index(x) for x in label]
+
+def ground_truth_to_word(ground_truth):
+    """
+        Return the word string based on the input ground_truth
+    """
+
+    return ''.join([config.CHAR_VECTOR[i] for i in ground_truth])
+
+def create_ground_truth(label):
+    """
+        Create our ground truth by replacing each char by its index in the CHAR_VECTOR
+    """
+
+    return [config.CHAR_VECTOR.index(l) for l in label.split('_')[0]]
+
+def levenshtein(s1, s2):
+    if len(s1) < len(s2):
+        return levenshtein(s2, s1)
+
+    # len(s1) >= len(s2)
+    if len(s2) == 0:
+        return len(s1)
+
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+
+    return previous_row[-1]
