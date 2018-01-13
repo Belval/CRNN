@@ -3,7 +3,7 @@ import os
 import numpy as np
 import config
 
-from utils import sparse_tuple_from, to_seq_len, resize_image, label_to_array
+from utils import sparse_tuple_from, to_seq_len, resize_image
 
 class DataManager(object):
     def __init__(self, batch_size, model_path, examples_path, max_text_length, max_image_width, train_test_ratio):
@@ -37,8 +37,9 @@ class DataManager(object):
         examples = []
 
         count = 0
+
         for f in os.listdir(self.examples_path):
-            if count > 1000:
+            if count >= 100:
                 break
             arr, initial_len = resize_image(
                 os.path.join(self.examples_path, f),
@@ -48,7 +49,7 @@ class DataManager(object):
                 (
                     arr,
                     f.split('_')[0],
-                    initial_len
+                    self.max_image_width
                 )
             )
             count += 1

@@ -7,7 +7,7 @@ import config
 from tensorflow.contrib import rnn
 
 from data_manager import DataManager
-from utils import sparse_tuple_from, to_seq_len, resize_image, label_to_array, ground_truth_to_word, levenshtein
+from utils import sparse_tuple_from, to_seq_len, resize_image, labels_to_array, ground_truth_to_word, levenshtein
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -19,8 +19,25 @@ class CRNN(object):
         self.__session = tf.Session()
 
         with self.__session.as_default():
-             self.__inputs, self.__targets, self.__seq_len, self.__logits, self.__decoded, self.__optimizer, self.__acc, self.__loss, self.__init = self.crnn()
-             self.__init.run()
+            (
+                self.__inputs,
+                self.__targets,
+                self.__seq_len,
+                self.__logits,
+                self.__decoded,
+                self.__optimizer,
+                self.__acc,
+                self.__loss,
+                self.__init,
+                self.__logits_1,
+                self.__logits_2,
+                self.__logits_3,
+                self.__conv_out,
+                self.__mso,
+                self.__crnn_model,
+                self.__cost
+            )  = self.crnn()
+            self.__init.run()
 
     def crnn(self):
         def BidirectionnalRNN(inputs):
@@ -90,49 +107,56 @@ class CRNN(object):
 
         inputs = tf.placeholder(tf.float32, [self.__data_manager.batch_size, 32, None, 1])
 
-        crnn_model = BidirectionnalRNN(
-            MapToSequences(
-                CNN(
-                    inputs
-                ),
-            ),
+        conv_out = CNN(
+            inputs
         )
 
+        map_2_seq_out = MapToSequences(conv_out)
+
+        crnn_model = BidirectionnalRNN(map_2_seq_out)
+
         # Our target output
-        targets = tf.sparse_placeholder(tf.int32, name='targets')
+        targets = tf.placeholder(tf.int32, [self.__data_manager.batch_size, 8, config.NUM_CLASSES], name='targets')
 
         # The length of the sequence
         seq_len = tf.placeholder(tf.int32, [None], name='seq_len')
 
-        logits = tf.reshape(crnn_model, [-1, 512])
+        logits_1 = tf.reshape(crnn_model, [-1, 512])
 
         W = tf.Variable(tf.truncated_normal([512, config.NUM_CLASSES], stddev=0.1), name="W")
         b = tf.Variable(tf.constant(0., shape=[config.NUM_CLASSES]), name="b")
 
-        logits = tf.matmul(logits, W) + b
+        logits_2 = tf.matmul(logits_1, W) + b
 
-        logits = tf.reshape(logits, [self.__data_manager.batch_size, -1, config.NUM_CLASSES])
+        logits_3 = None
 
-        # Final layer, the output of the BLSTM
-        logits = tf.transpose(logits, (1, 0, 2))
+        logits = tf.reshape(logits_2, [self.__data_manager.batch_size, -1, config.NUM_CLASSES])
 
+        pred = tf.nn.softmax(logits)
         # Loss and cost calculation
-        loss = tf.nn.ctc_loss(targets, logits, seq_len)
+        #loss = tf.nn.ctc_loss(targets, logits, seq_len)
+
+        loss = tf.losses.log_loss(targets, pred)
 
         cost = tf.reduce_mean(loss)
 
         # Training step
-        optimizer = tf.train.MomentumOptimizer(0.01, 0.9).minimize(cost)
+        optimizer = tf.train.AdamOptimizer(0.0001).minimize(cost)
+
+        decoded = tf.argmax(pred, axis=2)
 
         # The decoded answer
-        decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
+        #raw_decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
+
+        #decoded = tf.sparse_tensor_to_dense(raw_decoded[0])
 
         # The error rate
-        acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), targets))
+        acc = None
+        #acc = tf.reduce_mean(tf.edit_distance(tf.cast(raw_decoded[0], tf.int32), targets))
 
         init = tf.global_variables_initializer()
 
-        return inputs, targets, seq_len, logits, decoded, optimizer, acc, loss, init
+        return inputs, targets, seq_len, logits, decoded, optimizer, acc, loss, init, logits_1, logits_2, logits_3, conv_out, map_2_seq_out, crnn_model, cost
 
     def train(self, iteration_count):
         with self.__session.as_default():
@@ -140,17 +164,37 @@ class CRNN(object):
             for i in range(iteration_count):
                 iter_loss = 0
                 for batch_y, batch_sl, batch_x in self.__data_manager.get_next_train_batch():
-                    data_targets = np.asarray([label_to_array(lbl, config.CHAR_VECTOR) for lbl in batch_y])
-                    data_targets = sparse_tuple_from(data_targets)
-                    _, loss_value, decoded = self.__session.run(
-                        [self.__optimizer, self.__loss, self.__decoded],
+                    data_targets = labels_to_array(batch_y, config.CHAR_VECTOR, 8)
+                    #data_targets = np.asarray([label_to_array(lbl, config.CHAR_VECTOR) for lbl in batch_y])
+                    #data_targets = sparse_tuple_from(data_targets)
+                    logits, l2, l1, cv_out, mso, crnn_model, loss, cost, _, decoded, conv_out = self.__session.run(
+                        [
+                            self.__logits,
+                            self.__logits_2,
+                            self.__logits_1,
+                            self.__conv_out,
+                            self.__mso,
+                            self.__crnn_model,
+                            self.__loss,
+                            self.__cost,
+                            self.__optimizer,
+                            self.__decoded,
+                            self.__conv_out,
+                        ],
                         feed_dict={
                             self.__inputs: batch_x,
-                            self.__seq_len: batch_sl,
+                            self.__seq_len: [8] * len(batch_sl),
                             self.__targets: data_targets
                         }
                     )
-                    iter_loss += loss_value
+                    #print(np.shape(batch_x))
+                    #print(conv_out[0, :, :])
+                    #print(np.shape(conv_out))
+                    #print(np.shape(mso))
+                    if i % 50 == 0:
+                        print(batch_y[0])
+                        print(ground_truth_to_word(decoded[0]))
+                    iter_loss += cost
                 print('[{}] Iteration loss: {}'.format(i, iter_loss))
         return None
 

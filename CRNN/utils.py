@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from scipy.misc import imread, imresize
+from scipy.misc import imread, imresize, imsave
 
 import config
 
@@ -33,7 +33,11 @@ def resize_image(image, input_width):
     r, c = np.shape(im_arr)
     ratio = float(32 / r)
     im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
-    final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
+    if np.shape(im_arr_resized)[1] <= input_width:
+        final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
+    else:
+        final_arr[:, 0:input_width] = im_arr_resized[:, 0:input_width]
+
     return final_arr, c
 
 def to_seq_len(inputs, max_len):
@@ -46,15 +50,29 @@ def labels_to_string(labels, word_string):
 
     return result
 
-def label_to_array(label, letters):
-    return [letters.index(x) for x in label]
+def labels_to_array(labels, letters, pad_len):
+    """
+        Transform the label into an array
+    """
+
+    arr = np.zeros((len(labels), pad_len, len(letters)))
+    for i, label in enumerate(labels):
+        for j in range(pad_len):
+            if j < len(label):
+                arr[i, j, letters.index(label[j])] = 1
+            else:
+                arr[i, j, len(letters) - 1] = 1
+    return arr
 
 def ground_truth_to_word(ground_truth):
     """
         Return the word string based on the input ground_truth
     """
 
-    return ''.join([config.CHAR_VECTOR[i] for i in ground_truth])
+    try:
+        return ''.join([config.CHAR_VECTOR[i] for i in ground_truth])
+    except:
+        print(ground_truth)
 
 def create_ground_truth(label):
     """
