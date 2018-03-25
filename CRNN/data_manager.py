@@ -6,18 +6,14 @@ import config
 from utils import sparse_tuple_from, to_seq_len, resize_image, label_to_array
 
 class DataManager(object):
-    def __init__(self, batch_size, model_path, examples_path, max_text_length, max_image_width, train_test_ratio):
+    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio):
         if train_test_ratio > 1.0 or train_test_ratio < 0:
             raise Exception('Incoherent ratio!')
-
-        if max_text_length < 1 or max_image_width < 1:
-            raise Exception('Max length and/or width should be above 0')
 
         print(max_image_width)
 
         self.train_test_ratio = train_test_ratio
         self.max_image_width = max_image_width
-        self.max_text_length = max_text_length
         self.batch_size = batch_size
         self.model_path = model_path
         self.current_train_offset = 0
@@ -38,7 +34,10 @@ class DataManager(object):
 
         count = 0
         for f in os.listdir(self.examples_path):
-            if count > 1000:
+            if len(f.split('_')[0]) > 24:
+                print(f.split('_')[0])
+                continue
+            if count > 100:
                 break
             arr, initial_len = resize_image(
                 os.path.join(self.examples_path, f),
@@ -48,7 +47,7 @@ class DataManager(object):
                 (
                     arr,
                     f.split('_')[0],
-                    initial_len
+                    len(f.split('_')[0])
                 )
             )
             count += 1
@@ -77,7 +76,7 @@ class DataManager(object):
 
             batch_x = np.reshape(
                 np.array(raw_batch_x),
-                (-1, 32, self.max_image_width, 1)
+                (-1, self.max_image_width, 32, 1)
             )
 
             yield batch_y, batch_sl, batch_x

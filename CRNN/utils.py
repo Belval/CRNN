@@ -28,12 +28,17 @@ def resize_image(image, input_width):
         Resize an image to the "good" input size
     """
 
-    final_arr = np.zeros((32, input_width))
     im_arr = imread(image, mode='L')
     r, c = np.shape(im_arr)
-    ratio = float(32 / r)
-    im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
-    final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
+    if c > input_width:
+        c = input_width
+        ratio = float(input_width / c)
+        return imresize(im_arr, (int(32 * ratio), input_width)), c
+    else:
+        final_arr = np.zeros((32, input_width))
+        ratio = float(32 / r)
+        im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
+        final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
     return final_arr, c
 
 def to_seq_len(inputs, max_len):
@@ -47,7 +52,11 @@ def labels_to_string(labels, word_string):
     return result
 
 def label_to_array(label, letters):
-    return [letters.index(x) for x in label]
+    try:
+        return [letters.index(x) for x in label]
+    except Exception as ex:
+        print(label)
+        raise ex
 
 def ground_truth_to_word(ground_truth):
     """

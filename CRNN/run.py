@@ -32,7 +32,7 @@ def parse_arguments():
         type=str,
         nargs="?",
         help="The path where the pretrained model can be found or where the model will be saved",
-        required=True
+        default='./save/'
     )
     parser.add_argument(
         "-ex",
@@ -64,15 +64,7 @@ def parse_arguments():
         type=int,
         nargs="?",
         help="Maximum width of an example before truncating",
-        default=2000
-    )
-    parser.add_argument(
-        "-mtl",
-        "--max_text_length",
-        type=int,
-        nargs="?",
-        help="Max text length in character",
-        default=200
+        default=100
     )
 
     return parser.parse_args()
@@ -94,7 +86,6 @@ def main():
             args.batch_size,
             args.model_path,
             args.examples_path,
-            args.max_text_length,
             args.max_image_width,
             args.train_test_ratio
         )
@@ -108,7 +99,6 @@ def main():
                 args.batch_size,
                 args.model_path,
                 args.examples_path,
-                args.max_text_length,
                 args.max_image_width,
                 1
             )
