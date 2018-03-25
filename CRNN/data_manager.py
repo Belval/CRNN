@@ -33,16 +33,22 @@ class DataManager(object):
         examples = []
 
         count = 0
+        skipped = 0
         for f in os.listdir(self.examples_path):
             if len(f.split('_')[0]) > 24:
-                print(f.split('_')[0])
                 continue
-            if count > 100:
+            if count > 10000:
                 break
-            arr, initial_len = resize_image(
-                os.path.join(self.examples_path, f),
-                self.max_image_width
-            )
+            try:
+                arr, initial_len = resize_image(
+                    os.path.join(self.examples_path, f),
+                    self.max_image_width
+                )
+            except Exception as ex:
+                print(ex)
+                print('Skipping... ({})'.format(skipped))
+                skipped += 1
+                continue
             examples.append(
                 (
                     arr,
@@ -105,7 +111,7 @@ class DataManager(object):
 
             batch_x = np.reshape(
                 np.array(raw_batch_x),
-                (-1, 32, self.max_image_width, 1)
+                (-1, self.max_image_width, 32, 1)
             )
 
             yield batch_y, batch_sl, batch_x

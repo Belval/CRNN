@@ -19,30 +19,34 @@ class CRNN(object):
         self.__session = tf.Session()
 
         with self.__session.as_default():
-             self.__inputs, self.__targets, self.__seq_len, self.__logits, self.__decoded, self.__optimizer, self.__acc, self.__cost, self.__init, self.__cnn_output, self.__map_to_sequence_output, self.__crnn_model, self.__conv1, self.__pool1, self.__conv2, self.__pool2, self.__conv3, self.__conv4, self.__pool3, self.__conv5, self.__bnorm1, self.__conv6, self.__bnorm2, self.__pool4 = self.crnn()
+             self.__inputs, self.__targets, self.__seq_len, self.__logits, self.__decoded, self.__optimizer, self.__acc, self.__cost, self.__loss, self.__init, self.__cnn_output, self.__crnn_model, self.__conv1, self.__pool1, self.__conv2, self.__pool2, self.__conv3, self.__conv4, self.__pool3, self.__conv5, self.__bnorm1, self.__conv6, self.__bnorm2, self.__pool4 = self.crnn()
              self.__init.run()
 
     def crnn(self):
-        def BidirectionnalRNN(inputs):
+        def BidirectionnalRNN(inputs, seq_len):
             """
                 Bidirectionnal LSTM Recurrent Neural Network part
             """
 
             with tf.variable_scope(None, default_name="bidirectional-rnn-1"):
                 # Forward
-                lstm_fw_cell_1 = rnn.BasicLSTMCell(256, forget_bias=1.0)
+                lstm_fw_cell_1 = rnn.BasicLSTMCell(256)
                 # Backward
-                lstm_bw_cell_1 = rnn.BasicLSTMCell(256, forget_bias=1.0)
+                lstm_bw_cell_1 = rnn.BasicLSTMCell(256)
 
-                inter_output, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell_1, lstm_bw_cell_1, inputs, dtype=tf.float32)
+                inter_output, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_1, lstm_bw_cell_1, inputs, seq_len, dtype=tf.float32)
+
+                inter_output = tf.concat(inter_output, 2)
 
             with tf.variable_scope(None, default_name="bidirectional-rnn-2"):
                 # Forward
-                lstm_fw_cell_2 = rnn.BasicLSTMCell(256, forget_bias=1.0)
+                lstm_fw_cell_2 = rnn.BasicLSTMCell(256)
                 # Backward
-                lstm_bw_cell_2 = rnn.BasicLSTMCell(256, forget_bias=1.0)
+                lstm_bw_cell_2 = rnn.BasicLSTMCell(256)
 
-                outputs, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell_2, lstm_bw_cell_2, inter_output, dtype=tf.float32)
+                outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_2, lstm_bw_cell_2, inter_output, seq_len, dtype=tf.float32)
+
+                outputs = tf.concat(outputs, 2)
 
 
             return outputs
@@ -93,25 +97,19 @@ class CRNN(object):
 
             return conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4, conv7
 
-        def MapToSequences(x):
-            x = tf.unstack(x)
-            return x
-
         inputs = tf.placeholder(tf.float32, [self.__data_manager.batch_size, None, 32, 1])
-
-        conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4, cnn_output = CNN(inputs)
-
-        cnn_output_2 = tf.reshape(cnn_output, [self.__data_manager.batch_size, -1, 512])
-
-        map_to_sequence_output = MapToSequences(cnn_output_2)
-
-        crnn_model = BidirectionnalRNN(map_to_sequence_output)
 
         # Our target output
         targets = tf.sparse_placeholder(tf.int32, name='targets')
 
         # The length of the sequence
         seq_len = tf.placeholder(tf.int32, [None], name='seq_len')
+
+        conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4, cnn_output = CNN(inputs)
+
+        cnn_output_2 = tf.reshape(cnn_output, [self.__data_manager.batch_size, -1, 512])
+
+        crnn_model = BidirectionnalRNN(cnn_output_2, seq_len)
 
         logits = tf.reshape(crnn_model, [-1, 512])
 
@@ -128,7 +126,7 @@ class CRNN(object):
         # Loss and cost calculation
         loss = tf.nn.ctc_loss(targets, logits, seq_len)
 
-        cost = tf.reduce_mean(loss)
+        cost = tf.reduce_mean(tf.boolean_mask(loss, tf.logical_not(tf.is_inf(loss))))
 
         # Training step
         optimizer = tf.train.AdamOptimizer().minimize(cost)
@@ -136,12 +134,14 @@ class CRNN(object):
         # The decoded answer
         decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
 
+        dense_decoded = tf.sparse_tensor_to_dense(decoded[0], default_value=-1)
+
         # The error rate
         acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), targets))
 
         init = tf.global_variables_initializer()
 
-        return inputs, targets, seq_len, logits, decoded, optimizer, acc, cost, init, cnn_output, map_to_sequence_output, crnn_model, conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4
+        return inputs, targets, seq_len, logits, dense_decoded, optimizer, acc, cost, loss, init, cnn_output, crnn_model, conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4
 
     def train(self, iteration_count):
         with self.__session.as_default():
@@ -151,8 +151,8 @@ class CRNN(object):
                 for batch_y, batch_sl, batch_x in self.__data_manager.get_next_train_batch():
                     data_targets = np.asarray([label_to_array(lbl, config.CHAR_VECTOR) for lbl in batch_y])
                     data_targets = sparse_tuple_from(data_targets)
-                    _, decoded, loss_value, cnn, mts, cm, c1, p1, c2, p2, c3, c4, p3, c5, b1, c6, b2, p4 = self.__session.run(
-                        [self.__optimizer, self.__decoded, self.__cost, self.__cnn_output, self.__map_to_sequence_output, self.__crnn_model, self.__conv1, self.__pool1, self.__conv2, self.__pool2, self.__conv3, self.__conv4, self.__pool3, self.__conv5, self.__bnorm1, self.__conv6, self.__bnorm2, self.__pool4],
+                    op, decoded, loss_value, loss_array, cnn, cm, logits = self.__session.run(
+                        [self.__optimizer, self.__decoded, self.__cost, self.__loss, self.__cnn_output, self.__crnn_model, self.__logits],
                         feed_dict={
                             self.__inputs: batch_x,
                             self.__seq_len: batch_sl,
@@ -160,17 +160,26 @@ class CRNN(object):
                         }
                     )
 
+                    #print(batch_x[0])
+                    #print(batch_y[0])
+                    #print(batch_sl[0])
+                    #print(data_targets[0])
+
                     #print(np.shape(p1))
                     #print(np.shape(p2))
                     #print(np.shape(p3))
                     #print(np.shape(p4))
                     #print(cnn.shape)
-                    #print(np.shape(mts))
                     #print(np.shape(cm))
 
-                    #input('Blah')
+                    #print(np.shape(logits))
 
-                    print(decoded[0])
+                    if i % 10 == 0:
+                        for j in range(2):
+                            print(batch_y[j])
+                            print(ground_truth_to_word(decoded[j]))
+
+                    print(loss_value)
 
                     iter_loss += loss_value
                 print('[{}] Iteration loss: {}'.format(i, iter_loss))

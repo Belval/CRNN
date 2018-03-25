@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from scipy.misc import imread, imresize
+from scipy.misc import imread, imresize, imsave
 
 import config
 
@@ -33,13 +33,13 @@ def resize_image(image, input_width):
     if c > input_width:
         c = input_width
         ratio = float(input_width / c)
-        return imresize(im_arr, (int(32 * ratio), input_width)), c
+        final_arr = imresize(im_arr, (int(32 * ratio), input_width))
     else:
         final_arr = np.zeros((32, input_width))
         ratio = float(32 / r)
         im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
         final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
-    return final_arr, c
+    return (255 - final_arr) / 255 * 2 - 1, c
 
 def to_seq_len(inputs, max_len):
     return np.ones(np.shape(inputs)[0]) * max_len
@@ -63,7 +63,11 @@ def ground_truth_to_word(ground_truth):
         Return the word string based on the input ground_truth
     """
 
-    return ''.join([config.CHAR_VECTOR[i] for i in ground_truth])
+    try:
+        return ''.join([config.CHAR_VECTOR[i] for i in ground_truth if i != -1])
+    except:
+        print(ground_truth)
+        input()
 
 def create_ground_truth(label):
     """
