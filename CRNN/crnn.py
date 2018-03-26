@@ -3,11 +3,11 @@ import time
 import numpy as np
 import tensorflow as tf
 import config
-
+from scipy.misc import imread, imresize, imsave
 from tensorflow.contrib import rnn
 
 from data_manager import DataManager
-from utils import sparse_tuple_from, to_seq_len, resize_image, label_to_array, ground_truth_to_word, levenshtein
+from utils import sparse_tuple_from, resize_image, label_to_array, ground_truth_to_word, levenshtein
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -126,10 +126,10 @@ class CRNN(object):
         # Loss and cost calculation
         loss = tf.nn.ctc_loss(targets, logits, seq_len)
 
-        cost = tf.reduce_mean(tf.boolean_mask(loss, tf.logical_not(tf.is_inf(loss))))
+        cost = tf.reduce_mean(loss)
 
         # Training step
-        optimizer = tf.train.AdamOptimizer().minimize(cost)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.0001).minimize(cost)
 
         # The decoded answer
         decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
@@ -155,15 +155,21 @@ class CRNN(object):
                         [self.__optimizer, self.__decoded, self.__cost, self.__loss, self.__cnn_output, self.__crnn_model, self.__logits],
                         feed_dict={
                             self.__inputs: batch_x,
-                            self.__seq_len: batch_sl,
+                            self.__seq_len: [24] * self.__data_manager.batch_size,
                             self.__targets: data_targets
                         }
                     )
 
                     #print(batch_x[0])
+                    #print(np.shape(batch_x[0]))
+                    #imsave('test.jpg', np.reshape(batch_x[0], [32, 100]))
                     #print(batch_y[0])
                     #print(batch_sl[0])
-                    #print(data_targets[0])
+                    #print(data_targets[0][0:20])
+                    #print(len(data_targets[0]))
+                    #print(data_targets[1][0:20])
+                    #print(len(data_targets[1]))
+                    #print(data_targets[2])
 
                     #print(np.shape(p1))
                     #print(np.shape(p2))
@@ -178,8 +184,6 @@ class CRNN(object):
                         for j in range(2):
                             print(batch_y[j])
                             print(ground_truth_to_word(decoded[j]))
-
-                    print(loss_value)
 
                     iter_loss += loss_value
                 print('[{}] Iteration loss: {}'.format(i, iter_loss))

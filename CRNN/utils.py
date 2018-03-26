@@ -39,17 +39,7 @@ def resize_image(image, input_width):
         ratio = float(32 / r)
         im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
         final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
-    return (255 - final_arr) / 255 * 2 - 1, c
-
-def to_seq_len(inputs, max_len):
-    return np.ones(np.shape(inputs)[0]) * max_len
-
-def labels_to_string(labels, word_string):
-    result = ""
-    for l in labels:
-        result += word_string[l] if l != 0 else '-'
-
-    return result
+    return final_arr, c
 
 def label_to_array(label, letters):
     try:
@@ -68,13 +58,6 @@ def ground_truth_to_word(ground_truth):
     except:
         print(ground_truth)
         input()
-
-def create_ground_truth(label):
-    """
-        Create our ground truth by replacing each char by its index in the CHAR_VECTOR
-    """
-
-    return [config.CHAR_VECTOR.index(l) for l in label.split('_')[0]]
 
 def levenshtein(s1, s2):
     if len(s1) < len(s2):
