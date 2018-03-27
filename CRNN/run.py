@@ -67,6 +67,13 @@ def parse_arguments():
         default=100
     )
 
+    parser.add_argument(
+        "-r",
+        "--restore",
+        action="store_true",
+        help="Define if we try to load a checkpoint file from the save folder"
+    )
+
     return parser.parse_args()
 
 def main():
@@ -87,11 +94,11 @@ def main():
             args.model_path,
             args.examples_path,
             args.max_image_width,
-            args.train_test_ratio
+            args.train_test_ratio,
+            args.restore
         )
 
         crnn.train(args.iteration_count)
-        crnn.save()
 
     if args.test:
         if crnn is None:
@@ -100,7 +107,8 @@ def main():
                 args.model_path,
                 args.examples_path,
                 args.max_image_width,
-                1
+                1,
+                args.restore
             )
 
         crnn.test()

@@ -6,11 +6,9 @@ import config
 from utils import sparse_tuple_from, resize_image, label_to_array
 
 class DataManager(object):
-    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio):
+    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, max_char_count):
         if train_test_ratio > 1.0 or train_test_ratio < 0:
             raise Exception('Incoherent ratio!')
-
-        print(max_image_width)
 
         self.train_test_ratio = train_test_ratio
         self.max_image_width = max_image_width
@@ -18,6 +16,7 @@ class DataManager(object):
         self.model_path = model_path
         self.current_train_offset = 0
         self.examples_path = examples_path
+        self.max_char_count = max_char_count
         self.data, self.data_len = self.__load_data()
         self.test_offset = int(train_test_ratio * self.data_len)
         self.current_test_offset = self.test_offset
@@ -35,10 +34,8 @@ class DataManager(object):
         count = 0
         skipped = 0
         for f in os.listdir(self.examples_path):
-            if len(f.split('_')[0]) > 24:
+            if len(f.split('_')[0]) > self.max_char_count:
                 continue
-            if count > 100000:
-                break
             arr, initial_len = resize_image(
                 os.path.join(self.examples_path, f),
                 self.max_image_width

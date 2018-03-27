@@ -12,17 +12,47 @@ from utils import sparse_tuple_from, resize_image, label_to_array, ground_truth_
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 class CRNN(object):
-    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio):
-        self.__data_manager = DataManager(batch_size, model_path, examples_path, max_image_width, train_test_ratio)
+    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, restore):
+        self.step = 0
         self.__model_path = model_path
+        self.__save_path = os.path.join(model_path, 'ckp')
+
+        self.__restore = restore
+
         self.__training_name = str(int(time.time()))
         self.__session = tf.Session()
 
+        # Building graph
         with self.__session.as_default():
-             self.__inputs, self.__targets, self.__seq_len, self.__logits, self.__decoded, self.__optimizer, self.__acc, self.__cost, self.__loss, self.__init, self.__cnn_output, self.__crnn_model, self.__conv1, self.__pool1, self.__conv2, self.__pool2, self.__conv3, self.__conv4, self.__pool3, self.__conv5, self.__bnorm1, self.__conv6, self.__bnorm2, self.__pool4 = self.crnn()
-             self.__init.run()
+            (
+                self.__inputs,
+                self.__targets,
+                self.__seq_len,
+                self.__logits,
+                self.__decoded,
+                self.__optimizer,
+                self.__acc,
+                self.__cost,
+                self.__max_char_count,
+                self.__init
+            ) = self.crnn(max_image_width, batch_size)
+            self.__init.run()
 
-    def crnn(self):
+        with self.__session.as_default():
+            self.__saver = tf.train.Saver(tf.global_variables(), max_to_keep=10)
+            # Loading last save if needed
+            if self.__restore:
+                print('Restoring')
+                ckpt = tf.train.latest_checkpoint(self.__model_path)
+                if ckpt:
+                    print('Checkpoint is valid')
+                    self.step = int(ckpt.split('-')[1])
+                    self.__saver.restore(self.__session, ckpt)
+
+        # Creating data_manager
+        self.__data_manager = DataManager(batch_size, model_path, examples_path, max_image_width, train_test_ratio, self.__max_char_count)
+
+    def crnn(self, max_width, batch_size):
         def BidirectionnalRNN(inputs, seq_len):
             """
                 Bidirectionnal LSTM Recurrent Neural Network part
@@ -95,9 +125,9 @@ class CRNN(object):
             # 512 / 2 x 2 / 1 / 0
             conv7 = tf.layers.conv2d(inputs=pool4, filters = 512, kernel_size = (2, 2), padding = "valid", activation=tf.nn.relu)
 
-            return conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4, conv7
+            return conv7
 
-        inputs = tf.placeholder(tf.float32, [self.__data_manager.batch_size, None, 32, 1])
+        inputs = tf.placeholder(tf.float32, [batch_size, max_width, 32, 1])
 
         # Our target output
         targets = tf.sparse_placeholder(tf.int32, name='targets')
@@ -105,11 +135,13 @@ class CRNN(object):
         # The length of the sequence
         seq_len = tf.placeholder(tf.int32, [None], name='seq_len')
 
-        conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4, cnn_output = CNN(inputs)
+        cnn_output = CNN(inputs)
 
-        cnn_output_2 = tf.reshape(cnn_output, [self.__data_manager.batch_size, -1, 512])
+        reshaped_cnn_output = tf.reshape(cnn_output, [batch_size, -1, 512])
 
-        crnn_model = BidirectionnalRNN(cnn_output_2, seq_len)
+        max_char_count = reshaped_cnn_output.get_shape().as_list()[1]
+
+        crnn_model = BidirectionnalRNN(reshaped_cnn_output, seq_len)
 
         logits = tf.reshape(crnn_model, [-1, 512])
 
@@ -118,7 +150,7 @@ class CRNN(object):
 
         logits = tf.matmul(logits, W) + b
 
-        logits = tf.reshape(logits, [self.__data_manager.batch_size, -1, config.NUM_CLASSES])
+        logits = tf.reshape(logits, [batch_size, -1, config.NUM_CLASSES])
 
         # Final layer, the output of the BLSTM
         logits = tf.transpose(logits, (1, 0, 2))
@@ -141,44 +173,24 @@ class CRNN(object):
 
         init = tf.global_variables_initializer()
 
-        return inputs, targets, seq_len, logits, dense_decoded, optimizer, acc, cost, loss, init, cnn_output, crnn_model, conv1, pool1, conv2, pool2, conv3, conv4, pool3, conv5, bnorm1, conv6, bnorm2, pool4
+        return inputs, targets, seq_len, logits, dense_decoded, optimizer, acc, cost, max_char_count, init
 
     def train(self, iteration_count):
         with self.__session.as_default():
             print('Training')
-            for i in range(iteration_count):
+            for i in range(self.step, iteration_count + self.step):
                 iter_loss = 0
                 for batch_y, batch_sl, batch_x in self.__data_manager.get_next_train_batch():
                     data_targets = np.asarray([label_to_array(lbl, config.CHAR_VECTOR) for lbl in batch_y])
                     data_targets = sparse_tuple_from(data_targets)
-                    op, decoded, loss_value, loss_array, cnn, cm, logits = self.__session.run(
-                        [self.__optimizer, self.__decoded, self.__cost, self.__loss, self.__cnn_output, self.__crnn_model, self.__logits],
+                    op, decoded, loss_value = self.__session.run(
+                        [self.__optimizer, self.__decoded, self.__cost],
                         feed_dict={
                             self.__inputs: batch_x,
-                            self.__seq_len: [24] * self.__data_manager.batch_size,
+                            self.__seq_len: [self.__max_char_count] * self.__data_manager.batch_size,
                             self.__targets: data_targets
                         }
                     )
-
-                    #print(batch_x[0])
-                    #print(np.shape(batch_x[0]))
-                    #imsave('test.jpg', np.reshape(batch_x[0], [32, 100]))
-                    #print(batch_y[0])
-                    #print(batch_sl[0])
-                    #print(data_targets[0][0:20])
-                    #print(len(data_targets[0]))
-                    #print(data_targets[1][0:20])
-                    #print(len(data_targets[1]))
-                    #print(data_targets[2])
-
-                    #print(np.shape(p1))
-                    #print(np.shape(p2))
-                    #print(np.shape(p3))
-                    #print(np.shape(p4))
-                    #print(cnn.shape)
-                    #print(np.shape(cm))
-
-                    #print(np.shape(logits))
 
                     if i % 10 == 0:
                         for j in range(2):
@@ -186,7 +198,16 @@ class CRNN(object):
                             print(ground_truth_to_word(decoded[j]))
 
                     iter_loss += loss_value
-                print('[{}] Iteration loss: {}'.format(i, iter_loss))
+
+                self.__saver.save(
+                    self.__session,
+                    self.__save_path,
+                    global_step=self.step
+                )
+
+                print('[{}] Iteration loss: {}'.format(self.step, iter_loss))
+
+                self.step += 1
         return None
 
     def test(self):
@@ -207,17 +228,4 @@ class CRNN(object):
                 example_count += len(batch_y)
                 total_error += np.sum(levenshtein(ground_truth_to_word(batch_y), ground_truth_to_word(decoded)))
             print('Error on test set: {}'.format(total_error, total_error / example_count))
-        return None
-
-    def save(self):
-        path = os.path.join(self.__model_path, self.__training_name) if path is None else path
-
-        with open(os.path.join(path, 'crnn.pb'), 'wb') as f:
-            f.write(
-                tf.graph_util.convert_variables_to_constants(
-                    self.__session,
-                    self.__session.graph.as_graph_def(),
-                    self.__decoded
-                ).SerializeToString()
-            )
         return None
