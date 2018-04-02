@@ -41,9 +41,9 @@ def resize_image(image, input_width):
         final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
     return final_arr, c
 
-def label_to_array(label, letters):
+def label_to_array(label):
     try:
-        return [letters.index(x) for x in label]
+        return [config.CHAR_VECTOR.index(x) for x in label]
     except Exception as ex:
         print(label)
         raise ex
@@ -55,8 +55,9 @@ def ground_truth_to_word(ground_truth):
 
     try:
         return ''.join([config.CHAR_VECTOR[i] for i in ground_truth if i != -1])
-    except:
+    except Exception as ex:
         print(ground_truth)
+        print(ex)
         input()
 
 def levenshtein(s1, s2):

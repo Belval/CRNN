@@ -180,15 +180,13 @@ class CRNN(object):
             print('Training')
             for i in range(self.step, iteration_count + self.step):
                 iter_loss = 0
-                for batch_y, batch_sl, batch_x in self.__data_manager.get_next_train_batch():
-                    data_targets = np.asarray([label_to_array(lbl, config.CHAR_VECTOR) for lbl in batch_y])
-                    data_targets = sparse_tuple_from(data_targets)
+                for batch_y, batch_dt, batch_x in self.__data_manager.train_batches:
                     op, decoded, loss_value = self.__session.run(
                         [self.__optimizer, self.__decoded, self.__cost],
                         feed_dict={
                             self.__inputs: batch_x,
                             self.__seq_len: [self.__max_char_count] * self.__data_manager.batch_size,
-                            self.__targets: data_targets
+                            self.__targets: batch_dt
                         }
                     )
 
@@ -213,19 +211,16 @@ class CRNN(object):
     def test(self):
         with self.__session.as_default():
             print('Testing')
-            total_error = 0
-            example_count = 0
-            for batch_y, batch_sl, batch_x in self.__data_manager.get_next_test_batch():
-                data_targets = np.asarray([label_to_array(lbl, config.CHAR_VECTOR) for lbl in batch_y])
-                data_targets = sparse_tuple_from(data_targets)
+            for batch_y, _, batch_x in self.__data_manager.test_batches:
                 decoded = self.__session.run(
-                    [self.__decoded],
+                    self.__decoded,
                     feed_dict={
                         self.__inputs: batch_x,
-                        self.__seq_len: batch_sl
+                        self.__seq_len: [self.__max_char_count] * self.__data_manager.batch_size
                     }
                 )
-                example_count += len(batch_y)
-                total_error += np.sum(levenshtein(ground_truth_to_word(batch_y), ground_truth_to_word(decoded)))
-            print('Error on test set: {}'.format(total_error, total_error / example_count))
+
+                for i, y in enumerate(batch_y):
+                    print(batch_y[i])
+                    print(ground_truth_to_word(decoded[i]))
         return None

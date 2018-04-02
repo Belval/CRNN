@@ -107,7 +107,7 @@ def main():
                 args.model_path,
                 args.examples_path,
                 args.max_image_width,
-                1,
+                0,
                 args.restore
             )
 
