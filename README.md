@@ -6,6 +6,11 @@ A TensorFlow implementation of https://github.com/bgshih/crnn
 
 It is a Convolutional Recurrent Neural Network that can be used as an OCR
 
+## Requirements
+
+- Tensorflow (tested with 1.8) `pip3 install tensorflow`
+- Scipy `pip3 install scipy`
+
 ## What training data was used?
 
 All training data (200 000 examples) were generated using my other project https://github.com/Belval/TextRecognitionDataGenerator
