@@ -32,11 +32,11 @@ def resize_image(image, input_width):
     r, c = np.shape(im_arr)
     if c > input_width:
         c = input_width
-        ratio = float(input_width / c)
+        ratio = float(input_width) / c
         final_arr = imresize(im_arr, (int(32 * ratio), input_width))
     else:
         final_arr = np.zeros((32, input_width))
-        ratio = float(32 / r)
+        ratio = 32.0 / r
         im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
         final_arr[:, 0:np.shape(im_arr_resized)[1]] = im_arr_resized
     return final_arr, c
