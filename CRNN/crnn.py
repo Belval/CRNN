@@ -164,7 +164,7 @@ class CRNN(object):
         optimizer = tf.train.AdamOptimizer(learning_rate=0.0001).minimize(cost)
 
         # The decoded answer
-        decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
+        decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len, merge_repeated=False)
 
         dense_decoded = tf.sparse_tensor_to_dense(decoded[0], default_value=-1)
 
