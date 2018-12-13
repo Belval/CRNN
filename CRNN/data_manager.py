@@ -5,6 +5,8 @@ import config
 
 from utils import sparse_tuple_from, resize_image, label_to_array
 
+from scipy.misc import imsave
+
 class DataManager(object):
     def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, max_char_count):
         if train_test_ratio > 1.0 or train_test_ratio < 0:
@@ -50,6 +52,7 @@ class DataManager(object):
                     label_to_array(f.split('_')[0])
                 )
             )
+            imsave('blah.png', arr)
             count += 1
 
         return examples, len(examples)
@@ -77,9 +80,11 @@ class DataManager(object):
                 )
             )
 
+            raw_batch_x = np.swapaxes(raw_batch_x, 1, 2)
+
             batch_x = np.reshape(
                 np.array(raw_batch_x),
-                (-1, self.max_image_width, 32, 1)
+                (len(raw_batch_x), self.max_image_width, 32, 1)
             )
 
             train_batches.append((batch_y, batch_dt, batch_x))
@@ -108,9 +113,11 @@ class DataManager(object):
                 )
             )
 
+            raw_batch_x = np.swapaxes(raw_batch_x, 1, 2)
+
             batch_x = np.reshape(
                 np.array(raw_batch_x),
-                (-1, self.max_image_width, 32, 1)
+                (len(raw_batch_x), self.max_image_width, 32, 1)
             )
 
             test_batches.append((batch_y, batch_dt, batch_x))
