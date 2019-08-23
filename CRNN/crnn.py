@@ -40,7 +40,7 @@ class CRNN(object):
                 self.__cost,
                 self.__max_char_count,
                 self.__init
-            ) = self.crnn(max_image_width, batch_size)
+            ) = self.crnn(max_image_width)
             self.__init.run()
 
         with self.__session.as_default():
@@ -57,7 +57,7 @@ class CRNN(object):
         # Creating data_manager
         self.__data_manager = DataManager(batch_size, model_path, examples_path, max_image_width, train_test_ratio, self.__max_char_count, self.CHAR_VECTOR)
 
-    def crnn(self, max_width, batch_size):
+    def crnn(self, max_width):
         def BidirectionnalRNN(inputs, seq_len):
             """
                 Bidirectionnal LSTM Recurrent Neural Network part
@@ -132,6 +132,7 @@ class CRNN(object):
 
             return conv7
 
+        batch_size = None
         inputs = tf.placeholder(tf.float32, [batch_size, max_width, 32, 1], name="input")
 
         # Our target output
@@ -141,21 +142,17 @@ class CRNN(object):
         seq_len = tf.placeholder(tf.int32, [None], name='seq_len')
 
         cnn_output = CNN(inputs)
-
-        reshaped_cnn_output = tf.reshape(cnn_output, [batch_size, -1, 512])
-
-        max_char_count = reshaped_cnn_output.get_shape().as_list()[1]
+        reshaped_cnn_output = tf.squeeze(cnn_output, [2])
+        max_char_count = cnn_output.get_shape().as_list()[1] 
 
         crnn_model = BidirectionnalRNN(reshaped_cnn_output, seq_len)
 
         logits = tf.reshape(crnn_model, [-1, 512])
-
         W = tf.Variable(tf.truncated_normal([512, self.NUM_CLASSES], stddev=0.1), name="W")
         b = tf.Variable(tf.constant(0., shape=[self.NUM_CLASSES]), name="b")
 
         logits = tf.matmul(logits, W) + b
-
-        logits = tf.reshape(logits, [batch_size, -1, self.NUM_CLASSES])
+        logits = tf.reshape(logits, [tf.shape(cnn_output)[0], max_char_count, self.NUM_CLASSES])
 
         # Final layer, the output of the BLSTM
         logits = tf.transpose(logits, (1, 0, 2))
@@ -170,7 +167,6 @@ class CRNN(object):
 
         # The decoded answer
         decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len, merge_repeated=False)
-
         dense_decoded = tf.sparse_tensor_to_dense(decoded[0], default_value=-1, name='dense_decoded')
 
         # The error rate
@@ -186,8 +182,8 @@ class CRNN(object):
             for i in range(self.step, iteration_count + self.step):
                 iter_loss = 0
                 for batch_y, batch_dt, batch_x in self.__data_manager.train_batches:
-                    op, decoded, loss_value = self.__session.run(
-                        [self.__optimizer, self.__decoded, self.__cost],
+                    op, decoded, loss_value, acc = self.__session.run(
+                        [self.__optimizer, self.__decoded, self.__cost, self.__acc],
                         feed_dict={
                             self.__inputs: batch_x,
                             self.__seq_len: [self.__max_char_count] * self.__data_manager.batch_size,
@@ -211,7 +207,7 @@ class CRNN(object):
 
                 self.save_frozen_model("save/frozen.pb")
 
-                print('[{}] Iteration loss: {}'.format(self.step, iter_loss))
+                print('[{}] Iteration loss: {} Error rate: {}'.format(self.step, iter_loss, acc))
 
                 self.step += 1
         return None
