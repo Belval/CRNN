@@ -132,7 +132,7 @@ class CRNN(object):
 
             return conv7
 
-        inputs = tf.placeholder(tf.float32, [batch_size, max_width, 32, 1])
+        inputs = tf.placeholder(tf.float32, [batch_size, max_width, 32, 1], name="inputs")
 
         # Our target output
         targets = tf.sparse_placeholder(tf.int32, name='targets')
@@ -171,7 +171,7 @@ class CRNN(object):
         # The decoded answer
         decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len, merge_repeated=False)
 
-        dense_decoded = tf.sparse_tensor_to_dense(decoded[0], default_value=-1)
+        dense_decoded = tf.sparse_tensor_to_dense(decoded[0], default_value=-1, name='dense_decoded')
 
         # The error rate
         acc = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32), targets))
@@ -209,6 +209,8 @@ class CRNN(object):
                     global_step=self.step
                 )
 
+                self.save_frozen_model("save/frozen.pb")
+
                 print('[{}] Iteration loss: {}'.format(self.step, iter_loss))
 
                 self.step += 1
@@ -230,3 +232,29 @@ class CRNN(object):
                     print(batch_y[i])
                     print(ground_truth_to_word(decoded[i], self.CHAR_VECTOR))
         return None
+
+    def save_frozen_model(self, path=None, optimize=False, input_nodes=["inputs", "seq_len"], output_nodes=["dense_decoded"]):
+        if not path or len(path) == 0:
+            raise ValueError("Save path for frozen model is not specified")
+
+        self.logger.info("Saving frozen model to the path:" + path)
+        tf.train.write_graph(self.__session.graph_def, "/".join(path.split("/")[0:-1]), path.split("/")[-1] + ".pbtxt")
+
+        # get graph definitions with weights
+        output_graph_def = tf.graph_util.convert_variables_to_constants(
+            self.__session,  # The session is used to retrieve the weights
+            self.__session.graph.as_graph_def(),  # The graph_def is used to retrieve the nodes
+            output_nodes,  # The output node names are used to select the usefull nodes
+        )
+
+        # optimize graph
+        if optimize:
+            output_graph_def = optimize_for_inference_lib.optimize_for_inference(
+                output_graph_def, input_nodes, output_nodes, tf.float32.as_datatype_enum
+            )
+
+        with open(path, "wb") as f:
+            f.write(output_graph_def.SerializeToString())
+
+        self.logger.info("Saved frozen model successful!")
+        return True
