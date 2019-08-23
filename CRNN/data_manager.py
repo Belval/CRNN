@@ -1,18 +1,18 @@
 import re
 import os
 import numpy as np
-import config
 
 from utils import sparse_tuple_from, resize_image, label_to_array
 
 from scipy.misc import imsave
 
 class DataManager(object):
-    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, max_char_count):
+    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, max_char_count, char_vector):
         if train_test_ratio > 1.0 or train_test_ratio < 0:
             raise Exception('Incoherent ratio!')
 
         print(train_test_ratio)
+        self.char_vector = char_vector
 
         self.train_test_ratio = train_test_ratio
         self.max_image_width = max_image_width
@@ -49,7 +49,7 @@ class DataManager(object):
                 (
                     arr,
                     f.split('_')[0],
-                    label_to_array(f.split('_')[0])
+                    label_to_array(f.split('_')[0], self.char_vector)
                 )
             )
             imsave('blah.png', arr)

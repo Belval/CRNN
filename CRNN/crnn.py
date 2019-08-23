@@ -2,7 +2,6 @@ import os
 import time
 import numpy as np
 import tensorflow as tf
-import config
 from scipy.misc import imread, imresize, imsave
 from tensorflow.contrib import rnn
 
@@ -12,8 +11,14 @@ from utils import sparse_tuple_from, resize_image, label_to_array, ground_truth_
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 class CRNN(object):
-    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, restore):
+    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, restore, char_set_string):
         self.step = 0
+        self.CHAR_VECTOR = char_set_string
+        self.NUM_CLASSES = len(self.CHAR_VECTOR) + 1
+
+        print(f"CHAR_VECTOR {self.CHAR_VECTOR}")
+        print(f"NUM_CLASSES {self.NUM_CLASSES}")
+
         self.__model_path = model_path
         self.__save_path = os.path.join(model_path, 'ckp')
 
@@ -50,7 +55,7 @@ class CRNN(object):
                     self.__saver.restore(self.__session, ckpt)
 
         # Creating data_manager
-        self.__data_manager = DataManager(batch_size, model_path, examples_path, max_image_width, train_test_ratio, self.__max_char_count)
+        self.__data_manager = DataManager(batch_size, model_path, examples_path, max_image_width, train_test_ratio, self.__max_char_count, self.CHAR_VECTOR)
 
     def crnn(self, max_width, batch_size):
         def BidirectionnalRNN(inputs, seq_len):
@@ -145,12 +150,12 @@ class CRNN(object):
 
         logits = tf.reshape(crnn_model, [-1, 512])
 
-        W = tf.Variable(tf.truncated_normal([512, config.NUM_CLASSES], stddev=0.1), name="W")
-        b = tf.Variable(tf.constant(0., shape=[config.NUM_CLASSES]), name="b")
+        W = tf.Variable(tf.truncated_normal([512, self.NUM_CLASSES], stddev=0.1), name="W")
+        b = tf.Variable(tf.constant(0., shape=[self.NUM_CLASSES]), name="b")
 
         logits = tf.matmul(logits, W) + b
 
-        logits = tf.reshape(logits, [batch_size, -1, config.NUM_CLASSES])
+        logits = tf.reshape(logits, [batch_size, -1, self.NUM_CLASSES])
 
         # Final layer, the output of the BLSTM
         logits = tf.transpose(logits, (1, 0, 2))
@@ -192,8 +197,9 @@ class CRNN(object):
 
                     if i % 10 == 0:
                         for j in range(2):
-                            print(batch_y[j])
-                            print(ground_truth_to_word(decoded[j]))
+                            print('GT:', batch_y[j])
+                            print('PREDICT:', ground_truth_to_word(decoded[j], self.CHAR_VECTOR))
+                            print(f'---- {i} ----')
 
                     iter_loss += loss_value
 
@@ -222,5 +228,5 @@ class CRNN(object):
 
                 for i, y in enumerate(batch_y):
                     print(batch_y[i])
-                    print(ground_truth_to_word(decoded[i]))
+                    print(ground_truth_to_word(decoded[i], self.CHAR_VECTOR))
         return None
