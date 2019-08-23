@@ -132,7 +132,7 @@ class CRNN(object):
 
             return conv7
 
-        inputs = tf.placeholder(tf.float32, [batch_size, max_width, 32, 1], name="inputs")
+        inputs = tf.placeholder(tf.float32, [batch_size, max_width, 32, 1], name="input")
 
         # Our target output
         targets = tf.sparse_placeholder(tf.int32, name='targets')
@@ -233,7 +233,7 @@ class CRNN(object):
                     print(ground_truth_to_word(decoded[i], self.CHAR_VECTOR))
         return None
 
-    def save_frozen_model(self, path=None, optimize=False, input_nodes=["inputs", "seq_len"], output_nodes=["dense_decoded"]):
+    def save_frozen_model(self, path=None, optimize=False, input_nodes=["input", "seq_len"], output_nodes=["dense_decoded"]):
         if not path or len(path) == 0:
             raise ValueError("Save path for frozen model is not specified")
 
