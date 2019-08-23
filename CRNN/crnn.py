@@ -237,7 +237,6 @@ class CRNN(object):
         if not path or len(path) == 0:
             raise ValueError("Save path for frozen model is not specified")
 
-        self.logger.info("Saving frozen model to the path:" + path)
         tf.train.write_graph(self.__session.graph_def, "/".join(path.split("/")[0:-1]), path.split("/")[-1] + ".pbtxt")
 
         # get graph definitions with weights
@@ -256,5 +255,4 @@ class CRNN(object):
         with open(path, "wb") as f:
             f.write(output_graph_def.SerializeToString())
 
-        self.logger.info("Saved frozen model successful!")
         return True
