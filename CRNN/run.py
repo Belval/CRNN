@@ -1,6 +1,8 @@
 import argparse
 from crnn import CRNN
 
+CHAR_VECTOR = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-'.!?,\""
+
 def parse_arguments():
     """
         Parse the command line arguments of the program.
@@ -66,14 +68,20 @@ def parse_arguments():
         help="Maximum width of an example before truncating",
         default=100
     )
-
     parser.add_argument(
         "-r",
         "--restore",
         action="store_true",
         help="Define if we try to load a checkpoint file from the save folder"
     )
-
+    parser.add_argument(
+        "-cs",
+        "--char_set_string",
+        type=str,
+        nargs="?",
+        help="The charset string",
+        default=CHAR_VECTOR
+    )
     return parser.parse_args()
 
 def main():
@@ -95,7 +103,8 @@ def main():
             args.examples_path,
             args.max_image_width,
             args.train_test_ratio,
-            args.restore
+            args.restore,
+            args.char_set_string
         )
 
         crnn.train(args.iteration_count)
@@ -108,7 +117,8 @@ def main():
                 args.examples_path,
                 args.max_image_width,
                 0,
-                args.restore
+                args.restore,
+                args.char_set_string
             )
 
         crnn.test()

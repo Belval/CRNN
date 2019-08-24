@@ -21,6 +21,10 @@ To do the same, simply clone that project and do `python3 run.py -c 200000 -w 1 
 
 Available in CRNN/save. Use `python3 run.py -ex ../data/test --test --restore` to test.
 
+## Specify charset
+
+You can specify charset to include only numbers `python run.py --train -ex ../data/test -it 50000 -cs 0123456789`
+
 ## Results
 
 It works but is a suboptimal solution for OCR in its current form as it makes some mistakes. Do note that I used a bigger char vector than the paper.
