@@ -6,10 +6,20 @@ from utils import sparse_tuple_from, resize_image, label_to_array
 
 from scipy.misc import imsave
 
+
 class DataManager(object):
-    def __init__(self, batch_size, model_path, examples_path, max_image_width, train_test_ratio, max_char_count, char_vector):
+    def __init__(
+        self,
+        batch_size,
+        model_path,
+        examples_path,
+        max_image_width,
+        train_test_ratio,
+        max_char_count,
+        char_vector,
+    ):
         if train_test_ratio > 1.0 or train_test_ratio < 0:
-            raise Exception('Incoherent ratio!')
+            raise Exception("Incoherent ratio!")
 
         print(train_test_ratio)
         self.char_vector = char_vector
@@ -32,27 +42,26 @@ class DataManager(object):
             Load all the images in the folder
         """
 
-        print('Loading data')
+        print("Loading data")
 
         examples = []
 
         count = 0
         skipped = 0
         for f in os.listdir(self.examples_path):
-            if len(f.split('_')[0]) > self.max_char_count:
+            if len(f.split("_")[0]) > self.max_char_count:
                 continue
             arr, initial_len = resize_image(
-                os.path.join(self.examples_path, f),
-                self.max_image_width
+                os.path.join(self.examples_path, f), self.max_image_width
             )
             examples.append(
                 (
                     arr,
-                    f.split('_')[0],
-                    label_to_array(f.split('_')[0], self.char_vector)
+                    f.split("_")[0],
+                    label_to_array(f.split("_")[0], self.char_vector),
                 )
             )
-            imsave('blah.png', arr)
+            imsave("blah.png", arr)
             count += 1
 
         return examples, len(examples)
@@ -66,25 +75,18 @@ class DataManager(object):
 
             self.current_train_offset = new_offset
 
-            raw_batch_x, raw_batch_y, raw_batch_la = zip(*self.data[old_offset:new_offset])
-
-            batch_y = np.reshape(
-                np.array(raw_batch_y),
-                (-1)
+            raw_batch_x, raw_batch_y, raw_batch_la = zip(
+                *self.data[old_offset:new_offset]
             )
 
-            batch_dt = sparse_tuple_from(
-                np.reshape(
-                    np.array(raw_batch_la),
-                    (-1)
-                )
-            )
+            batch_y = np.reshape(np.array(raw_batch_y), (-1))
+
+            batch_dt = sparse_tuple_from(np.reshape(np.array(raw_batch_la), (-1)))
 
             raw_batch_x = np.swapaxes(raw_batch_x, 1, 2)
 
             batch_x = np.reshape(
-                np.array(raw_batch_x),
-                (len(raw_batch_x), self.max_image_width, 32, 1)
+                np.array(raw_batch_x), (len(raw_batch_x), self.max_image_width, 32, 1)
             )
 
             train_batches.append((batch_y, batch_dt, batch_x))
@@ -99,25 +101,18 @@ class DataManager(object):
 
             self.current_test_offset = new_offset
 
-            raw_batch_x, raw_batch_y, raw_batch_la = zip(*self.data[old_offset:new_offset])
-
-            batch_y = np.reshape(
-                np.array(raw_batch_y),
-                (-1)
+            raw_batch_x, raw_batch_y, raw_batch_la = zip(
+                *self.data[old_offset:new_offset]
             )
 
-            batch_dt = sparse_tuple_from(
-                np.reshape(
-                    np.array(raw_batch_la),
-                    (-1)
-                )
-            )
+            batch_y = np.reshape(np.array(raw_batch_y), (-1))
+
+            batch_dt = sparse_tuple_from(np.reshape(np.array(raw_batch_la), (-1)))
 
             raw_batch_x = np.swapaxes(raw_batch_x, 1, 2)
 
             batch_x = np.reshape(
-                np.array(raw_batch_x),
-                (len(raw_batch_x), self.max_image_width, 32, 1)
+                np.array(raw_batch_x), (len(raw_batch_x), self.max_image_width, 32, 1)
             )
 
             test_batches.append((batch_y, batch_dt, batch_x))
