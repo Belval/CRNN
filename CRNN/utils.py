@@ -13,21 +13,24 @@ def sparse_tuple_from(sequences, dtype=np.int32):
     values = []
 
     for n, seq in enumerate(sequences):
-        indices.extend(zip([n]*len(seq), [i for i in range(len(seq))]))
+        indices.extend(zip([n] * len(seq), [i for i in range(len(seq))]))
         values.extend(seq)
 
     indices = np.asarray(indices, dtype=np.int64)
     values = np.asarray(values, dtype=dtype)
-    shape = np.asarray([len(sequences), np.asarray(indices).max(0)[1]+1], dtype=np.int64)
+    shape = np.asarray(
+        [len(sequences), np.asarray(indices).max(0)[1] + 1], dtype=np.int64
+    )
 
     return indices, values, shape
+
 
 def resize_image(image, input_width):
     """
         Resize an image to the "good" input size
     """
 
-    im_arr = imread(image, mode='L')
+    im_arr = imread(image, mode="L")
     r, c = np.shape(im_arr)
     if c > input_width:
         c = input_width
@@ -37,8 +40,11 @@ def resize_image(image, input_width):
         final_arr = np.zeros((32, input_width))
         ratio = 32.0 / r
         im_arr_resized = imresize(im_arr, (32, int(c * ratio)))
-        final_arr[:, 0:min(input_width,np.shape(im_arr_resized)[1])] = im_arr_resized[:, 0:input_width]
+        final_arr[
+            :, 0 : min(input_width, np.shape(im_arr_resized)[1])
+        ] = im_arr_resized[:, 0:input_width]
     return final_arr, c
+
 
 def label_to_array(label, char_vector):
     try:
@@ -47,17 +53,19 @@ def label_to_array(label, char_vector):
         print(label)
         raise ex
 
+
 def ground_truth_to_word(ground_truth, char_vector):
     """
         Return the word string based on the input ground_truth
     """
 
     try:
-        return ''.join([char_vector[i] for i in ground_truth if i != -1])
+        return "".join([char_vector[i] for i in ground_truth if i != -1])
     except Exception as ex:
         print(ground_truth)
         print(ex)
         input()
+
 
 def levenshtein(s1, s2):
     if len(s1) < len(s2):
