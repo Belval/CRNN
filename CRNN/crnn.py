@@ -245,7 +245,9 @@ class CRNN(object):
         logits = tf.transpose(logits, (1, 0, 2))
 
         # Loss and cost calculation
-        loss = tf.nn.ctc_loss(targets, logits, seq_len)
+        loss = tf.nn.ctc_loss(
+            targets, logits, seq_len, ignore_longer_outputs_than_inputs=True
+        )
 
         cost = tf.reduce_mean(loss)
 
@@ -282,6 +284,7 @@ class CRNN(object):
         with self.session.as_default():
             print("Training")
             for i in range(self.step, iteration_count + self.step):
+                batch_count = 0
                 iter_loss = 0
                 for batch_y, batch_dt, batch_x in self.data_manager.train_batches:
                     op, decoded, loss_value, acc = self.session.run(
@@ -296,24 +299,20 @@ class CRNN(object):
 
                     if i % 10 == 0:
                         for j in range(2):
-                            print("GT:", batch_y[j])
-                            print(
-                                "PREDICT:",
-                                ground_truth_to_word(decoded[j], self.CHAR_VECTOR),
-                            )
-                            print(f"---- {i} ----")
+                            pred = ground_truth_to_word(decoded[j], self.CHAR_VECTOR)
+                            print(f"{batch_y[j]} | {pred}")
+                        print(f"---- {i} | {batch_count} ----")
 
                     iter_loss += loss_value
+                    batch_count += 1
+                    if batch_count >= 100:
+                        break
 
                 self.saver.save(self.session, self.save_path, global_step=self.step)
 
                 self.save_frozen_model("save/frozen.pb")
 
-                print(
-                    "[{}] Iteration loss: {} Error rate: {}".format(
-                        self.step, iter_loss, acc
-                    )
-                )
+                print(f"[{self.step}] Iteration loss: {iter_loss} Error rate: {acc}")
 
                 self.step += 1
         return None

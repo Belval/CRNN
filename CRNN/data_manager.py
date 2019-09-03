@@ -80,7 +80,7 @@ class DataManager(object):
             if queue.qsize() < 20:
                 queue.put((batch_y, batch_dt, batch_x))
             else:
-                print("Queue was full")
+                pass
 
     def multiprocess_batch_generator(self):
         """Returns a batch generator to use in training
