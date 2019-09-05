@@ -27,6 +27,8 @@ class CRNN(object):
         train_test_ratio,
         restore,
         char_set_string,
+        use_trdg,
+        language,
     ):
         self.step = 0
         self.CHAR_VECTOR = char_set_string
@@ -35,50 +37,52 @@ class CRNN(object):
         print(f"CHAR_VECTOR {self.CHAR_VECTOR}")
         print(f"NUM_CLASSES {self.NUM_CLASSES}")
 
-        self.__model_path = model_path
-        self.__save_path = os.path.join(model_path, "ckp")
+        self.model_path = model_path
+        self.save_path = os.path.join(model_path, "ckp")
 
-        self.__restore = restore
+        self.restore = restore
 
-        self.__training_name = str(int(time.time()))
-        self.__session = tf.Session()
+        self.training_name = str(int(time.time()))
+        self.session = tf.Session()
 
         # Building graph
-        with self.__session.as_default():
+        with self.session.as_default():
             (
-                self.__inputs,
-                self.__targets,
-                self.__seq_len,
-                self.__logits,
-                self.__decoded,
-                self.__optimizer,
-                self.__acc,
-                self.__cost,
-                self.__max_char_count,
-                self.__init,
+                self.inputs,
+                self.targets,
+                self.seq_len,
+                self.logits,
+                self.decoded,
+                self.optimizer,
+                self.acc,
+                self.cost,
+                self.max_char_count,
+                self.init,
             ) = self.crnn(max_image_width)
-            self.__init.run()
+            self.init.run()
 
-        with self.__session.as_default():
-            self.__saver = tf.train.Saver(tf.global_variables(), max_to_keep=10)
+        with self.session.as_default():
+            self.saver = tf.train.Saver(tf.global_variables(), max_to_keep=10)
             # Loading last save if needed
-            if self.__restore:
+            if self.restore:
                 print("Restoring")
-                ckpt = tf.train.latest_checkpoint(self.__model_path)
+                ckpt = tf.train.latest_checkpoint(self.model_path)
                 if ckpt:
                     print("Checkpoint is valid")
                     self.step = int(ckpt.split("-")[1])
-                    self.__saver.restore(self.__session, ckpt)
+                    self.saver.restore(self.session, ckpt)
 
         # Creating data_manager
-        self.__data_manager = DataManager(
+        self.data_manager = DataManager(
             batch_size,
             model_path,
             examples_path,
             max_image_width,
             train_test_ratio,
-            self.__max_char_count,
+            self.max_char_count,
             self.CHAR_VECTOR,
+            use_trdg,
+            language,
         )
 
     def crnn(self, max_width):
@@ -241,7 +245,9 @@ class CRNN(object):
         logits = tf.transpose(logits, (1, 0, 2))
 
         # Loss and cost calculation
-        loss = tf.nn.ctc_loss(targets, logits, seq_len)
+        loss = tf.nn.ctc_loss(
+            targets, logits, seq_len, ignore_longer_outputs_than_inputs=True
+        )
 
         cost = tf.reduce_mean(loss)
 
@@ -275,57 +281,52 @@ class CRNN(object):
         )
 
     def train(self, iteration_count):
-        with self.__session.as_default():
+        with self.session.as_default():
             print("Training")
             for i in range(self.step, iteration_count + self.step):
+                batch_count = 0
                 iter_loss = 0
-                for batch_y, batch_dt, batch_x in self.__data_manager.train_batches:
-                    op, decoded, loss_value, acc = self.__session.run(
-                        [self.__optimizer, self.__decoded, self.__cost, self.__acc],
+                for batch_y, batch_dt, batch_x in self.data_manager.train_batches:
+                    op, decoded, loss_value, acc = self.session.run(
+                        [self.optimizer, self.decoded, self.cost, self.acc],
                         feed_dict={
-                            self.__inputs: batch_x,
-                            self.__seq_len: [self.__max_char_count]
-                            * self.__data_manager.batch_size,
-                            self.__targets: batch_dt,
+                            self.inputs: batch_x,
+                            self.seq_len: [self.max_char_count]
+                            * self.data_manager.batch_size,
+                            self.targets: batch_dt,
                         },
                     )
 
                     if i % 10 == 0:
                         for j in range(2):
-                            print("GT:", batch_y[j])
-                            print(
-                                "PREDICT:",
-                                ground_truth_to_word(decoded[j], self.CHAR_VECTOR),
-                            )
-                            print(f"---- {i} ----")
+                            pred = ground_truth_to_word(decoded[j], self.CHAR_VECTOR)
+                            print(f"{batch_y[j]} | {pred}")
+                        print(f"---- {i} | {batch_count} ----")
 
                     iter_loss += loss_value
+                    batch_count += 1
+                    if batch_count >= 100:
+                        break
 
-                self.__saver.save(
-                    self.__session, self.__save_path, global_step=self.step
-                )
+                self.saver.save(self.session, self.save_path, global_step=self.step)
 
                 self.save_frozen_model("save/frozen.pb")
 
-                print(
-                    "[{}] Iteration loss: {} Error rate: {}".format(
-                        self.step, iter_loss, acc
-                    )
-                )
+                print(f"[{self.step}] Iteration loss: {iter_loss} Error rate: {acc}")
 
                 self.step += 1
         return None
 
     def test(self):
-        with self.__session.as_default():
+        with self.session.as_default():
             print("Testing")
-            for batch_y, _, batch_x in self.__data_manager.test_batches:
-                decoded = self.__session.run(
-                    self.__decoded,
+            for batch_y, _, batch_x in self.data_manager.test_batches:
+                decoded = self.session.run(
+                    self.decoded,
                     feed_dict={
-                        self.__inputs: batch_x,
-                        self.__seq_len: [self.__max_char_count]
-                        * self.__data_manager.batch_size,
+                        self.inputs: batch_x,
+                        self.seq_len: [self.max_char_count]
+                        * self.data_manager.batch_size,
                     },
                 )
 
@@ -345,15 +346,15 @@ class CRNN(object):
             raise ValueError("Save path for frozen model is not specified")
 
         tf.train.write_graph(
-            self.__session.graph_def,
+            self.session.graph_def,
             "/".join(path.split("/")[0:-1]),
             path.split("/")[-1] + ".pbtxt",
         )
 
         # get graph definitions with weights
         output_graph_def = tf.graph_util.convert_variables_to_constants(
-            self.__session,  # The session is used to retrieve the weights
-            self.__session.graph.as_graph_def(),  # The graph_def is used to retrieve the nodes
+            self.session,  # The session is used to retrieve the weights
+            self.session.graph.as_graph_def(),  # The graph_def is used to retrieve the nodes
             output_nodes,  # The output node names are used to select the usefull nodes
         )
 

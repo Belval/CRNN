@@ -1,7 +1,7 @@
 import argparse
 from crnn import CRNN
 
-CHAR_VECTOR = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-'.!?,\""
+CHAR_VECTOR = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-'.!?,\"&"
 
 
 def parse_arguments():
@@ -39,7 +39,6 @@ def parse_arguments():
         type=str,
         nargs="?",
         help="The path to the file containing the examples (training samples)",
-        required=True,
     )
     parser.add_argument(
         "-bs", "--batch_size", type=int, nargs="?", help="Size of a batch", default=64
@@ -74,6 +73,20 @@ def parse_arguments():
         help="The charset string",
         default=CHAR_VECTOR,
     )
+    parser.add_argument(
+        "--use_trdg",
+        action="store_true",
+        help="Generate training data on the fly with TextRecognitionDataGenerator",
+    )
+    parser.add_argument(
+        "-l",
+        "--language",
+        type=str,
+        nargs="?",
+        help="Language to use with TRDG (Must be used with --use_trdg",
+        default="en",
+    )
+
     return parser.parse_args()
 
 
@@ -98,6 +111,8 @@ def main():
             args.train_test_ratio,
             args.restore,
             args.char_set_string,
+            args.use_trdg,
+            args.language,
         )
 
         crnn.train(args.iteration_count)
@@ -112,6 +127,8 @@ def main():
                 0,
                 args.restore,
                 args.char_set_string,
+                args.use_trdg,
+                args.language,
             )
 
         crnn.test()
