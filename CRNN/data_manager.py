@@ -74,6 +74,8 @@ class DataManager(object):
 
             raw_batch_x = np.swapaxes(raw_batch_x, 1, 2)
 
+            raw_batch_x = raw_batch_x / 255.0
+
             batch_x = np.reshape(
                 np.array(raw_batch_x), (len(raw_batch_x), self.max_image_width, 32, 1)
             )
@@ -141,6 +143,8 @@ class DataManager(object):
 
             raw_batch_x = np.swapaxes(raw_batch_x, 1, 2)
 
+            raw_batch_x = raw_batch_x / 255.0
+
             batch_x = np.reshape(
                 np.array(raw_batch_x), (len(raw_batch_x), self.max_image_width, 32, 1)
             )
@@ -166,6 +170,8 @@ class DataManager(object):
             batch_dt = sparse_tuple_from(np.reshape(np.array(raw_batch_la), (-1)))
 
             raw_batch_x = np.swapaxes(raw_batch_x, 1, 2)
+
+            raw_batch_x = raw_batch_x / 255.0
 
             batch_x = np.reshape(
                 np.array(raw_batch_x), (len(raw_batch_x), self.max_image_width, 32, 1)
