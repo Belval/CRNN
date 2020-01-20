@@ -1,8 +1,6 @@
 import argparse
 from crnn import CRNN
-
-CHAR_VECTOR = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-'.!?,\"&"
-
+from config import CHAR_VECTOR
 
 def parse_arguments():
     """

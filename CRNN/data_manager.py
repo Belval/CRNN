@@ -9,7 +9,7 @@ from scipy.misc import imread
 from trdg.generators import GeneratorFromDict
 
 
-class DataManager(object):
+class DataManager:
     def __init__(
         self,
         batch_size,
