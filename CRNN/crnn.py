@@ -34,8 +34,8 @@ class CRNN(object):
         self.CHAR_VECTOR = char_set_string
         self.NUM_CLASSES = len(self.CHAR_VECTOR) + 1
 
-        print(f"CHAR_VECTOR {self.CHAR_VECTOR}")
-        print(f"NUM_CLASSES {self.NUM_CLASSES}")
+        print("CHAR_VECTOR {}".format(self.CHAR_VECTOR))
+        print("NUM_CLASSES {}".format(self.NUM_CLASSES))
 
         self.model_path = model_path
         self.save_path = os.path.join(model_path, "ckp")
@@ -300,8 +300,8 @@ class CRNN(object):
                     if i % 10 == 0:
                         for j in range(2):
                             pred = ground_truth_to_word(decoded[j], self.CHAR_VECTOR)
-                            print(f"{batch_y[j]} | {pred}")
-                        print(f"---- {i} | {batch_count} ----")
+                            print("{} | {}".format(batch_y[j], pred))
+                        print("---- {} | {} ----".format(i, batch_count))
 
                     iter_loss += loss_value
                     batch_count += 1
@@ -312,7 +312,8 @@ class CRNN(object):
 
                 self.save_frozen_model("save/frozen.pb")
 
-                print(f"[{self.step}] Iteration loss: {iter_loss} Error rate: {acc}")
+                print("[{}] Iteration loss: {} Error rate: {}".format(
+                    self.step, iter_loss, acc))
 
                 self.step += 1
         return None
