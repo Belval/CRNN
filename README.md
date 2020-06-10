@@ -1,3 +1,5 @@
+**This repository has been archived. Please see all the other (much better) implementations around GitHub**
+
 # CRNN
 
 A TensorFlow implementation of https://github.com/bgshih/crnn
